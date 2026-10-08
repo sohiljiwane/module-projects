@@ -191,3 +191,68 @@ Close the monitor before uploading. Only one program can hold the port.
 ### Safe disconnect
 
 Unplug any time except while an upload is running. Close the serial monitor first.
+
+## ESP32-S3 WiFi Test
+
+Standalone PlatformIO project to verify the WiFi connectivity of an ESP32-S3 module. It connects to your network over serial and reports the full link status, then exercises DNS and HTTP to confirm end-to-end internet access.
+
+### What it tests
+
+1. **Association** — connects to your WiFi (20 s timeout, auto-retries every 10 s if the link drops).
+2. **Link status** — every 10 s while connected it prints:
+   - status, IP, subnet mask, gateway, DNS server
+   - MAC address, RSSI (signal strength), BSSID, channel
+3. **DNS** — resolves `www.google.com`.
+4. **HTTP** — issues a `GET /` to `www.google.com` and reports the number of bytes received.
+
+Seeing `HTTP OK: received NNNN bytes` confirms the whole path works: radio → DHCP → DNS → internet. If it associates but DNS/HTTP fail, the problem is upstream of the module.
+
+### Project layout
+
+```
+wifi-test/
+├── platformio.ini        # build config (esp32-s3-devkitc-1, 16 MB flash, USB CDC)
+├── include/
+│   └── config.h          # your WiFi credentials — edit this
+└── src/
+    └── main.cpp          # the test
+```
+
+### Setup
+
+1. Edit `wifi-test/include/config.h` and set your network:
+
+   ```c
+   #define WIFI_SSID "YOUR_WIFI_SSID"
+   #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+   ```
+
+   The SSID is the name of your WiFi network (shown in your phone/laptop's WiFi list, or printed on a label on the router).
+
+2. Optional — use a fixed IP instead of DHCP by uncommenting and editing:
+
+   ```c
+   #define STATIC_IP "192.168.1.100"
+   #define STATIC_GW  "192.168.1.1"
+   #define STATIC_MASK "255.255.255.0"
+   ```
+
+### Build & flash
+
+```bash
+cd wifi-test
+pio run -t upload
+pio run -t monitor
+```
+
+The serial monitor (115200 baud) shows the connection progress and the periodic status report.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+| --- | --- |
+| `connect failed` / `no ssid` | Wrong SSID or the network is out of range |
+| `auth failure` | Wrong password |
+| Connects, but `DNS lookup FAILED` | Router's DNS is unreachable; check the gateway |
+| Connects, DNS OK, `HTTP connection FAILED` | Outbound traffic blocked (firewall / captive portal) |
+| No serial output | Check the USB port and that `ARDUINO_USB_CDC_ON_BOOT` is set (it is, in `platformio.ini`) |
