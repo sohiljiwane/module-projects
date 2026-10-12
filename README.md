@@ -256,3 +256,56 @@ The serial monitor (115200 baud) shows the connection progress and the periodic 
 | Connects, but `DNS lookup FAILED` | Router's DNS is unreachable; check the gateway |
 | Connects, DNS OK, `HTTP connection FAILED` | Outbound traffic blocked (firewall / captive portal) |
 | No serial output | Check the USB port and that `ARDUINO_USB_CDC_ON_BOOT` is set (it is, in `platformio.ini`) |
+
+## ESP32-S3 Audio + Microphone Test
+
+Standalone PlatformIO project (`audio-test/`) that tests the on-board microphone and an external speaker. Serial-only, no TFT. The hardware was identified on the board itself rather than assumed.
+
+### Detected hardware
+
+| Item | Value |
+|---|---|
+| Audio codec | ES8311 (mic ADC + DAC), I2C `0x18`, chip ID `8311` confirmed. Shares the touch I2C bus (SDA 16 / SCL 15) |
+| I2S MCLK / BCLK / WS | GPIO 4 / 5 / 7 |
+| I2S DOUT (to DAC) / DIN (from mic) | GPIO 8 / 6 |
+| Speaker amp enable | GPIO 1 (polarity probed at boot) |
+| Mic | on-board analog mic via the ES8311 |
+
+Live mic samples at the noise floor (RMS about 10-20) confirm the I2S pin map. Speaker output is judged by ear, and the mic also listens to it as a rough check.
+
+### Build, flash, monitor
+
+```bash
+source ~/pio/bin/activate
+cd audio-test
+pio run -t upload
+pio device monitor
+```
+
+`espressif32@6.9.0` is pinned because the test uses the legacy `driver/i2s.h` API.
+
+### What it does
+
+On boot: I2C scan and ES8311 ID check, speaker test (both amp polarities, then a C-E-G scale), a 5 s mic level meter, then a 3 s record and playback.
+
+Serial commands afterwards:
+
+| Key | Action |
+|---|---|
+| `t` | Speaker test |
+| `m` | Mic level meter |
+| `r` | Record 3 s and play back |
+| `l` | Live mic to speaker loopback (10 s; keep the speaker away from the mic) |
+| `+` / `-` | Speaker volume |
+| `g` / `G` | Mic gain up / down |
+| `a` | Flip amp-enable polarity (use if the speaker is silent) |
+| `i` / `A` / `h` | Rescan I2C / run everything / help |
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `ES8311 NOT found` | Check `CODEC_SDA/SCL/ADDR` in `audio-test/include/config.h` |
+| Mic meter all zero | I2S pin map in `config.h` is wrong |
+| Speaker silent | Press `a` to flip PA polarity, `+` for volume, check the speaker header wiring |
+| Mic too quiet | Press `g` to raise gain |
